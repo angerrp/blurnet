@@ -24,11 +24,13 @@ transforms = torch.nn.Sequential(
 
 def train_loop(train_dataset, optimizer, loss_fn):
     size = len(train_dataset.dataset)
-    loader = DataLoader(train_dataset, shuffle=True, batch_size=64, pin_memory=True)
+    loader = DataLoader(train_dataset, shuffle=True, batch_size=16, pin_memory=True)
     for batch, (X, y) in enumerate(loader):
        # X = X.unsqueeze(0)
         # Compute prediction and loss
+        X = X.to("cuda")
         pred = model(X)
+        y = y.to("cuda")
         loss = loss_fn(pred, y)
 
         # Backpropagation
@@ -41,20 +43,24 @@ def train_loop(train_dataset, optimizer, loss_fn):
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
 
-dataset = CustomImageDataset(annotations_file="data_binary_classification.csv", img_dir="/home/paul/Downloads/blur-dataset/tmp", transform=transforms)
+dataset = CustomImageDataset(annotations_file="data_binary_classification.csv", img_dir="/home/paul/Downloads/blurr_data/tmp", transform=transforms)
+a = dataset[0]
 
 train_size = int(0.8 * len(dataset))
 test_size = len(dataset) - train_size
 train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+for elem in test_dataset:
+    pass
 model = BlurNet()
 model.train()
-
+model.to("cuda")
 
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0005)
 
 loss_fn = nn.CrossEntropyLoss()
-epoch = 10
-for i in range(epoch):
+epoch = 30
+# for i in range(epoch):
+while True:
     train_loop(train_dataset, optimizer, loss_fn)
     torch.save(model.state_dict(), "model.pth")
 
