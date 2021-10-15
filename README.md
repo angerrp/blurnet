@@ -3,7 +3,7 @@ A blur detection model trained to detect blurry images. Implemented with pytorch
 
 ## Dataset
 
-The model is trained on this [Blur Dataset](https://www.kaggle.com/kwentar/blur-dataset) from kaggle. The dataset consists of 1050 blurred and sharp images, consisting of 3x350 photos (motion-blurred, defocused-blurred, sharp). 
+The model is trained on a [blur dataset](https://www.kaggle.com/kwentar/blur-dataset) from kaggle. The dataset consists of 1050 blurred and sharp images, consisting of 3x350 photos (motion-blurred, defocused-blurred, sharp). 
 
 ## CNN Architecture
 
