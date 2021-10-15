@@ -15,6 +15,7 @@ The model was designed with the help of pytorch lightning. For data preparation 
 For training the EarlyStopping callback of pytorch lightning based on validation loss was used to avoid overfitting of the model.
 A batch size of 128 was chosen and data augmentation in the train dataloader was performed.
 As input a cropped image of size 96x96 pixels was chosen, depending on hardware constraints this could be increased.
+After training for more than 200 epochs the model reached an accuracy of 81.91%.
 
 ## How to run
 
