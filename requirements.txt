@@ -1,0 +1,6 @@
+torch
+torchvision
+pytorch_lightning
+pillow
+pandas
+# wandb

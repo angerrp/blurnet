@@ -1,86 +1,73 @@
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from torch.utils.data import random_split
 from torchvision import transforms
+
 from dataloader import CustomImageDataset
-import matplotlib.pyplot as plt
+from model import Blurnet
 
-from model import BlurNet
+IM_SIZE = 96
 
-transforms = torch.nn.Sequential(
-    transforms.Resize(300),
-    transforms.CenterCrop(300),
-    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+train_transforms = transforms.Compose(
+    [
+        transforms.Resize(IM_SIZE * 5),
+        # apply some augmentation
+        transforms.RandomCrop(IM_SIZE),
+        # transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ]
 )
-#
-# transforms = torch.nn.Sequential([
-#     # transforms.RandomResizedCrop(224),
-#     # transforms.RandomHorizontalFlip(),
-#     transforms.ToTensor(),
-#     transforms.Normalize(mean=[0.485, 0.456, 0.406],
-#                          std=[0.229, 0.224, 0.225]),
-# ])
+test_transforms = transforms.Compose(
+    [
+        transforms.Resize(IM_SIZE * 5),
+        transforms.CenterCrop(IM_SIZE),
+        transforms.ToTensor(),
+    ]
+)
 
+train_dataset = CustomImageDataset(
+    annotations_file="train_set.csv", transform=train_transforms
+)
+test_dataset = CustomImageDataset(
+    annotations_file="test_set.csv", transform=test_transforms
+)
 
-def train_loop(train_dataset, optimizer, loss_fn):
-    size = len(train_dataset.dataset)
-    loader = DataLoader(train_dataset, shuffle=True, batch_size=16, pin_memory=True)
-    for batch, (X, y) in enumerate(loader):
-       # X = X.unsqueeze(0)
-        # Compute prediction and loss
-        X = X.to("cuda")
-        pred = model(X)
-        y = y.to("cuda")
-        loss = loss_fn(pred, y)
+# split test set in test and validation (dev) part (90/10)
+test_set, validation_dataset = random_split(
+    test_dataset,
+    [int(len(test_dataset) * 0.9), len(test_dataset) - int(len(test_dataset) * 0.9)],
+)
+validation_dataset.transforms = test_transforms
 
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+# initialize model
+model = Blurnet(train_dataset, validation_dataset, test_dataset)
 
-        if batch % 100 == 0:
-            loss, current = loss.item(), batch * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+# save best checkpoint
+checkpoint_callback = ModelCheckpoint(
+    monitor="val_loss",
+    dirpath="./checkpoints",
+    filename="sample-blurnet-{epoch:02d}-{val_loss:.2f}",
+    save_top_k=1,
+    mode="min",
+)
 
+# optional logging with wandb, add logger to trainer
+# wandb.init(project='blurnet', entity='xxxxx')
+# wandb_logger = WandbLogger()
 
-dataset = CustomImageDataset(annotations_file="data_binary_classification.csv", img_dir="/home/paul/Downloads/blurr_data/tmp", transform=transforms)
-a = dataset[0]
+# stop training when validation loss does not decrease for 10 epochs
+early_callback = EarlyStopping(
+    monitor="val_loss", check_on_train_epoch_end=True, patience=10
+)
 
-train_size = int(0.8 * len(dataset))
-test_size = len(dataset) - train_size
-train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
-for elem in test_dataset:
-    pass
-model = BlurNet()
-model.train()
-model.to("cuda")
+trainer = pl.Trainer(
+    callbacks=[checkpoint_callback, early_callback],
+    auto_lr_find=True,
+    min_epochs=30,
+    log_every_n_steps=2,
+)
 
-optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0005)
-
-loss_fn = nn.CrossEntropyLoss()
-epoch = 30
-# for i in range(epoch):
-while True:
-    train_loop(train_dataset, optimizer, loss_fn)
-    torch.save(model.state_dict(), "model.pth")
-
-model = BlurNet()
-model.load_state_dict(torch.load("model.pth"))
-correct = 0
-total = 0
-# since we're not training, we don't need to calculate the gradients for our outputs
-with torch.no_grad():
-    model.eval()
-    loader = DataLoader(test_dataset)
-
-    for data in loader:
-        images, labels = data
-        # calculate outputs by running images through the network
-        outputs = model(images)
-        # the class with the highest energy is what we choose as prediction
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-print('Accuracy of the network on the 10000 test images: %d %%' % (
-    100 * correct / total))
+# search for initial learning rate
+trainer.tune(model)
+trainer.fit(model)
+trainer.test(model)
