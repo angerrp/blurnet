@@ -1,5 +1,5 @@
 # Image Blur Detection
-A blur detection model trained to detect motion and out of focus image blur implemented using pytorch lightning.
+A blur detection model trained to detect blurry images. Implemented with pytorch lightning.
 
 ## Dataset
 
